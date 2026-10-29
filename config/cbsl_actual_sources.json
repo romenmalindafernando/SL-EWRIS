@@ -1,0 +1,26 @@
+{
+  "sources": [
+    {
+      "indicator": "usd_lkr",
+      "filename": "IF_Monthly_Average_Exchange_Rates_September 2026.xlsx",
+      "sheet": "",
+      "header_row": null,
+      "month_column": "",
+      "value_column": "",
+      "date_format": "",
+      "source_unit": "LKR per USD",
+      "source_url": ""
+    },
+    {
+      "indicator": "UNCONFIRMED",
+      "filename": "table2.04_20260930_e.xlsx",
+      "sheet": "",
+      "header_row": null,
+      "month_column": "",
+      "value_column": "",
+      "date_format": "",
+      "source_unit": "",
+      "source_url": ""
+    }
+  ]
+}

@@ -1,0 +1,318 @@
+"""SL-EWRIS Step 8: Audited monthly economic data entry (run from VS Code)."""
+
+from datetime import date
+from pathlib import Path
+import math
+import re
+
+from database import DATABASE_PATH, connect_database, create_tables
+
+# These are observed indicators, not simulated values or crisis probabilities.
+FIELDS = {
+    "1": ("headline_yoy_pct", "Headline YoY inflation (%)", False),
+    "2": ("food_yoy_pct", "Food YoY inflation (%)", False),
+    "3": ("nonfood_yoy_pct", "Non-food YoY inflation (%)", False),
+    "4": ("ccpi_headline_original", "Published headline CCPI index", True),
+    "5": ("ccpi_food_original", "Published food CCPI index", True),
+    "6": ("ccpi_nonfood_original", "Published non-food CCPI index", True),
+    "7": ("public_nominal_original", "CBSL public nominal wage index", True),
+    "8": ("informal_nominal_original", "CBSL informal nominal wage index", True),
+    "9": ("public_real_ncpi_raw", "CBSL public real wage index (NCPI)", True),
+    "10": ("informal_real_ncpi_raw", "CBSL informal real wage index (NCPI)", True),
+    "11": ("fx_reserves_usd_bn", "FX reserves (USD billions)", True),
+    "12": ("usd_lkr", "Exchange rate (LKR per USD)", True),
+    "13": ("average_monthly_salary_lkr", "Published national mean salary (LKR)", True),
+}
+
+
+def ask_nonempty(message):
+    while True:
+        text = input(message).strip()
+        if text:
+            return text
+        print("This field is required.")
+
+
+def ask_yes_no(message):
+    return input(f"{message} [y/N]: ").strip().lower() in {"y", "yes"}
+
+
+def read_month():
+    while True:
+        month = ask_nonempty("Observation month (YYYY-MM): ")
+        if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+            print("Use YYYY-MM, such as 2026-01.")
+            continue
+        year, month_number = map(int, month.split("-"))
+        if year < 2014:
+            print("This project currently starts in January 2014.")
+            continue
+        if (year, month_number) >= (date.today().year, date.today().month):
+            print("Only enter completed months; do not enter future/current months.")
+            continue
+        return month
+
+
+def read_publication_date(month):
+    while True:
+        published = ask_nonempty("Official publication date (YYYY-MM-DD): ")
+        try:
+            d = date.fromisoformat(published)
+        except ValueError:
+            print("Invalid date; use YYYY-MM-DD.")
+            continue
+        if d < date.fromisoformat(month + "-01"):
+            print("Publication date cannot precede the observation month.")
+            continue
+        if d > date.today():
+            print("Publication date cannot be in the future.")
+            continue
+        return published
+
+
+def read_value(positive):
+    while True:
+        raw = ask_nonempty("Published numeric value (percent as e.g. 2.1, NOT 0.021): ")
+        try:
+            number = float(raw.replace(",", ""))
+        except ValueError:
+            print("Enter a valid numeric value.")
+            continue
+        if not math.isfinite(number):
+            print("NaN and infinity are not allowed.")
+            continue
+        if positive and number <= 0:
+            print("This indicator must be positive.")
+            continue
+        if not positive and number < -100:
+            print("A year-on-year inflation rate cannot be below -100%.")
+            continue
+        if not positive and abs(number) > 100:
+            print("Warning: unusually large inflation rate; check percentage units.")
+        return number
+
+
+def all_months_between(start, end):
+    """Return YYYY-MM months strictly after start and before end."""
+    year, month = map(int, start.split("-"))
+    result = []
+    while True:
+        month += 1
+        if month == 13:
+            month, year = 1, year + 1
+        candidate = f"{year:04d}-{month:02d}"
+        if candidate >= end:
+            return result
+        result.append(candidate)
+
+
+def create_source_log(conn):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS indicator_source_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            month TEXT NOT NULL,
+            indicator TEXT NOT NULL,
+            old_value TEXT,
+            new_value TEXT NOT NULL,
+            publication_date TEXT NOT NULL,
+            source_name TEXT NOT NULL,
+            source_url TEXT,
+            recorded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(month) REFERENCES economic_monthly(month)
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_source_log_month_indicator
+        ON indicator_source_log(month, indicator)
+    """)
+
+
+def latest_ccpi_base(conn, month):
+    row = conn.execute("""
+        SELECT ccpi_published_base
+        FROM economic_monthly
+        WHERE month < ? AND ccpi_headline_original IS NOT NULL
+          AND ccpi_published_base IS NOT NULL
+        ORDER BY month DESC LIMIT 1
+    """, (month,)).fetchone()
+    return row[0] if row else None
+
+
+def derived_updates(conn, month, field, value, base, wages_same_base):
+    """Calculate comparable indices only when their index base is confirmed."""
+    updates = {}
+    if field == "ccpi_headline_original":
+        pair = conn.execute("""
+            SELECT ccpi_headline_original, ccpi_linked_jan2019_100
+            FROM economic_monthly
+            WHERE month < ? AND ccpi_published_base = ?
+              AND ccpi_headline_original > 0
+              AND ccpi_linked_jan2019_100 > 0
+            ORDER BY month DESC LIMIT 1
+        """, (month, base)).fetchone()
+        if pair:
+            updates["ccpi_linked_jan2019_100"] = value * pair[1] / pair[0]
+        else:
+            print("No same-base CCPI linking reference found; linked index remains blank.")
+    elif field in {"public_nominal_original", "informal_nominal_original"}:
+        if wages_same_base:
+            baseline = conn.execute(
+                f'SELECT "{field}" FROM economic_monthly WHERE month = ?',
+                ("2019-01",)
+            ).fetchone()
+            if baseline and baseline[0] is not None and baseline[0] > 0:
+                target = field.replace("_original", "_jan2019_100")
+                updates[target] = value * 100 / baseline[0]
+            else:
+                print("January 2019 wage baseline missing; rebased index remains blank.")
+    return updates
+
+
+def run():
+    if not Path(DATABASE_PATH).is_file():
+        raise FileNotFoundError(
+            "SQLite database is missing. Run seed_database.py first."
+        )
+
+    print("\nSL-EWRIS | Monthly official economic data entry")
+    print("This is source-recorded monitoring, not a crisis prediction.\n")
+
+    month = read_month()
+    for key, (_, label, _) in FIELDS.items():
+        print(f"  {key:>2}. {label}")
+
+    while True:
+        selection = input("Choose an indicator number: ").strip()
+        if selection in FIELDS:
+            break
+        print("Select one of the displayed indicator numbers.")
+
+    field, label, positive = FIELDS[selection]
+    value = read_value(positive)
+    publication_date = read_publication_date(month)
+    source_name = ask_nonempty("Official source/document (e.g. DCS CCPI release): ")
+    source_url = input("Official source URL (optional): ").strip() or None
+
+    with connect_database() as conn:
+        # Ensure tables exist; do not replace existing data.
+        create_tables(conn)
+        create_source_log(conn)
+
+        current = conn.execute(
+            f'SELECT "{field}", ccpi_published_base FROM economic_monthly WHERE month = ?',
+            (month,)
+        ).fetchone()
+        last = conn.execute(
+            "SELECT MAX(month) FROM economic_monthly"
+        ).fetchone()[0]
+
+        if current is None and last is not None and month < last:
+            print("This is a missing historical month. Review database gaps before editing.")
+            return
+
+        gaps = all_months_between(last, month) if last and month > last else []
+        if gaps:
+            print(f"\nThere are {len(gaps)} unrecorded months before {month}.")
+            print("We can create BLANK placeholders, without making up economic values.")
+            if not ask_yes_no("Create these blank months?"):
+                print("No changes saved.")
+                return
+
+        old_value = current[0] if current else None
+        if old_value is not None and math.isclose(float(old_value), value, rel_tol=0, abs_tol=1e-10):
+            print("That value is already stored. No changes needed.")
+            return
+
+        if old_value is not None:
+            print(f"\nEXISTING VALUE: {old_value}")
+            print("Changing an existing observation is a source revision and will be logged.")
+            if not ask_yes_no("Confirm replacement of this existing value?"):
+                print("No changes saved.")
+                return
+
+        base = current[1] if current else None
+        previous_base = latest_ccpi_base(conn, month)
+        if field.startswith("ccpi_"):
+            if base is None:
+                base = ask_nonempty("CCPI published base (e.g. 2021=100): ")
+            if base not in {"2013=100", "2021=100"}:
+                raise ValueError("Unrecognized CCPI base. Review linking method first.")
+            if previous_base and previous_base != base:
+                raise ValueError(
+                    "CCPI base changed. Stop: a new source-verified linking "
+                    "method is required; no data was saved."
+                )
+
+        wages_same_base = False
+        if field in {"public_nominal_original", "informal_nominal_original"}:
+            wages_same_base = ask_yes_no(
+                "Does this wage index use the SAME published base as in January 2019?"
+            )
+
+        print("\nREVIEW ENTRY")
+        print(f"Month: {month}\nIndicator: {label}\nValue: {value}")
+        print(f"Publication: {publication_date}\nSource: {source_name}")
+        print(f"URL: {source_url or 'Not provided'}")
+        if not ask_yes_no("SAVE this entry?"):
+            print("No changes saved.")
+            return
+
+        # The entire operation, including audit log and blank placeholders,
+        # commits together or rolls back together.
+        with conn:
+            for gap_month in gaps:
+                conn.execute("""
+                    INSERT INTO economic_monthly(month, source, record_origin, notes)
+                    VALUES (?, 'Awaiting official source data',
+                               'missing_month_placeholder',
+                               'Empty placeholder; no reported observations')
+                    ON CONFLICT(month) DO NOTHING
+                """, (gap_month,))
+
+            conn.execute("""
+                INSERT INTO economic_monthly(month, source, record_origin, notes)
+                VALUES (?, 'Monthly manual entry; see indicator_source_log',
+                           'manual_entry', 'Official source details in indicator_source_log')
+                ON CONFLICT(month) DO NOTHING
+            """, (month,))
+
+            updates = {field: value}
+            if field.startswith("ccpi_") and base:
+                updates["ccpi_published_base"] = base
+
+            # Derive related metrics only for NEW observations.
+            # Historical revisions must be handled by a separate reprocessing pass.
+            if month > "2025-12":
+                updates.update(
+                    derived_updates(conn, month, field, value, base, wages_same_base)
+                )
+
+            columns_sql = ", ".join(f'"{name}" = ?' for name in updates)
+            params = [*updates.values(), month]
+            conn.execute(
+                f'UPDATE economic_monthly SET {columns_sql}, '
+                'updated_at = CURRENT_TIMESTAMP, '
+                "record_origin = 'manual_entry' WHERE month = ?",
+                params
+            )
+
+            conn.execute("""
+                INSERT INTO indicator_source_log(
+                    month, indicator, old_value, new_value,
+                    publication_date, source_name, source_url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                month, field,
+                str(old_value) if old_value is not None else None,
+                str(value), publication_date, source_name, source_url
+            ))
+
+        print("\n[PASS] Observation saved with source and audit history.")
+        if gaps:
+            print(f"Created {len(gaps)} empty monthly placeholder rows.")
+        print("Re-run Step 7 analysis to refresh monitoring outputs.")
+        print("Data entry does not train or validate a crisis prediction model.")
+
+
+if __name__ == "__main__":
+    run()

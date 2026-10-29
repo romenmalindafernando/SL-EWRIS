@@ -1,0 +1,27 @@
+
+{
+  "sources": [
+    {
+      "indicator": "fx_reserves_usd_bn",
+      "filename": "REPLACE_WITH_OFFICIAL_RESERVES_FILE.xlsx",
+      "sheet": "REPLACE_WITH_SHEET_NAME",
+      "header_row": 1,
+      "month_column": "Month",
+      "value_column": "Gross Official Reserves",
+      "date_format": "%Y-%m",
+      "source_unit": "USD millions",
+      "source_url": "https://www.cbsl.gov.lk/"
+    },
+    {
+      "indicator": "usd_lkr",
+      "filename": "REPLACE_WITH_OFFICIAL_EXCHANGE_FILE.xlsx",
+      "sheet": "REPLACE_WITH_SHEET_NAME",
+      "header_row": 1,
+      "month_column": "Month",
+      "value_column": "USD/LKR Monthly Average",
+      "date_format": "%Y-%m",
+      "source_unit": "LKR per USD",
+      "source_url": "https://www.cbsl.gov.lk/"
+    }
+  ]
+}
