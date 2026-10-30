@@ -27,3 +27,6 @@ data/*backup*
 .vscode/
 .idea/
 Thumbs.db
+
+# SL-EWRIS release exclusions
+data/historical_data.csv
