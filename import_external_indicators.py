@@ -1,4 +1,4 @@
-
+﻿
 """
 SL-EWRIS Step 12: Safely import verified monthly CBSL external indicators.
 
@@ -17,9 +17,12 @@ import csv
 import datetime as dt
 import math
 import re
-import sqlite3
+import psycopg
+from database import connect_database
 
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 # ============================================================
@@ -28,7 +31,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
-DB = ROOT / "database" / "economic_risk.db"
 
 INPUT = (
     ROOT
@@ -366,17 +368,7 @@ def run(apply):
         len(updates)
     )
 
-    if not DB.exists():
-
-        raise FileNotFoundError(
-            f"Database missing: {DB}. "
-            "Run seed_database.py first."
-        )
-
-    with sqlite3.connect(DB) as connection:
-
-        connection.row_factory = sqlite3.Row
-
+    with connect_database() as connection:
         # ----------------------------------------
         # Check existing database table
         # ----------------------------------------
@@ -384,8 +376,8 @@ def run(apply):
         table = connection.execute(
             """
             SELECT name
-            FROM sqlite_master
-            WHERE type = 'table'
+            FROM pg_catalog.pg_tables
+            WHERE schemaname = current_schema()
               AND name = 'economic_monthly'
             """
         ).fetchone()
@@ -400,7 +392,12 @@ def run(apply):
         columns = {
             row["name"]
             for row in connection.execute(
-                "PRAGMA table_info(economic_monthly)"
+                """
+                SELECT column_name AS name
+                FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'economic_monthly'
+                """
             )
         }
 

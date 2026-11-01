@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 20
 # PREPARE CBSL MONTHLY DATA FOR REVIEW
@@ -6,7 +6,7 @@
 # Reads original downloaded CBSL spreadsheets.
 # Identifies candidate reserve/exchange-rate tables.
 #
-# READ-ONLY for original source files and SQLite.
+# READ-ONLY for original source files and PostgreSQL.
 # Does NOT invent, interpolate or import economic data.
 # ============================================================
 
@@ -466,7 +466,7 @@ def main():
 
     print(
         "\nNo observations were imported or "
-        "modified in SQLite."
+        "modified in PostgreSQL."
     )
 
     print(

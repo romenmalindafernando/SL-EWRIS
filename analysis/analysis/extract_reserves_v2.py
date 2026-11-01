@@ -1,4 +1,4 @@
-
+﻿
 from pathlib import Path
 from datetime import datetime, date
 import calendar
@@ -359,7 +359,7 @@ def main():
         print("\n[REVIEW] Full coverage not achieved")
 
     print("\nAudit:", AUDIT)
-    print("SQLite database unchanged.")
+    print("PostgreSQL database unchanged.")
     print("All candidates remain Pending verification.")
 
 

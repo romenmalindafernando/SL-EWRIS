@@ -1,8 +1,11 @@
 ﻿from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
-import sqlite3
+import psycopg
+from database import connect_database
 
 import pandas as pd
 import streamlit as st
@@ -439,5 +442,5 @@ st.warning(
 
 st.caption(
     "Read-only historical research dashboard. "
-    "SQLite and source evidence files remain unchanged."
+    "PostgreSQL and source evidence files remain unchanged."
 )

@@ -1,17 +1,20 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 15
 # EXTERNAL-SECTOR DATA COVERAGE AND SOURCE AUDIT
 #
 # Period: January 2014 – December 2025
-# Database: SQLite
+# Database: PostgreSQL
 #
 # This script is READ-ONLY.
 # It does not change any economic observations.
 # ============================================================
 
 from pathlib import Path
-import sqlite3
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 
 import numpy as np
 import pandas as pd
@@ -24,7 +27,6 @@ import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
 
-DB_PATH = ROOT / "database" / "economic_risk.db"
 
 OUTPUT_DIR = ROOT / "outputs" / "external_data_audit"
 
@@ -70,21 +72,13 @@ CBSL_SOURCE = (
 
 def load_database():
 
-    if not DB_PATH.is_file():
-        raise FileNotFoundError(
-            f"Database not found: {DB_PATH}"
-        )
-
-    # Open SQLite in read-only mode.
-    uri = DB_PATH.resolve().as_uri() + "?mode=ro"
-
-    with sqlite3.connect(uri, uri=True) as conn:
+    with connect_database() as conn:
 
         existing_tables = {
             row[0]
             for row in conn.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type='table'"
+                "SELECT tablename AS name FROM pg_catalog.pg_tables "
+                "WHERE schemaname = current_schema()"
             )
         }
 
@@ -138,7 +132,7 @@ def load_database():
 
     if monthly["month"].duplicated().any():
         raise ValueError(
-            "Duplicate month records found in SQLite."
+            "Duplicate month records found in PostgreSQL."
         )
 
     # Check that the dates use the correct format.

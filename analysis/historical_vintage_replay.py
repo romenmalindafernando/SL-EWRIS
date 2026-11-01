@@ -197,7 +197,7 @@ def replay():
         )
 
     print("\nSaved:", REPLAY)
-    print("SQLite unchanged.")
+    print("PostgreSQL unchanged.")
     print("No unverified values used.")
 
 

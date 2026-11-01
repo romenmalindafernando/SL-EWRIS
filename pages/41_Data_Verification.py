@@ -1,14 +1,14 @@
-﻿from pathlib import Path
-from datetime import date
+﻿from datetime import date
 from urllib.parse import urlparse
-import sqlite3
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 import math
 
 import pandas as pd
 import streamlit as st
-
-ROOT = Path(__file__).resolve().parents[1]
-DB = ROOT / "database" / "economic_risk.db"
 
 st.set_page_config(
     page_title="SL-EWRIS | Data Verification",
@@ -24,10 +24,6 @@ st.warning(
     "It does not independently authenticate CBSL/DCS data "
     "and does not modify historical research observations."
 )
-
-if not DB.exists():
-    st.error("Existing SQLite database was not found.")
-    st.stop()
 
 INDICATORS = {
     "Inflation YoY (%)": (
@@ -46,8 +42,7 @@ INDICATORS = {
 
 
 def connect():
-    con = sqlite3.connect(DB, timeout=15)
-    con.row_factory = sqlite3.Row
+    con = connect_database()
     return con
 
 
@@ -114,7 +109,7 @@ st.subheader("1. Select Monthly Draft")
 
 try:
     drafts = load_drafts()
-except sqlite3.Error as exc:
+except psycopg.Error as exc:
     st.error(f"Cannot read drafts: {exc}")
     st.stop()
 
@@ -314,7 +309,7 @@ if submitted:
                 "before research or model use."
             )
 
-        except (sqlite3.Error, ValueError) as exc:
+        except (psycopg.Error, ValueError) as exc:
             st.error(str(exc))
 
 st.divider()

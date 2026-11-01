@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 17
 # HISTORICAL EARLY-WARNING READINESS AUDIT
@@ -14,7 +14,10 @@
 # ============================================================
 
 from pathlib import Path
-import sqlite3
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 
 import numpy as np
 import pandas as pd
@@ -26,7 +29,6 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 
-DATABASE = ROOT / "database" / "economic_risk.db"
 
 OUTPUT = ROOT / "outputs" / "early_warning_backtest"
 
@@ -66,24 +68,12 @@ INDICATORS = {
 
 def load_database():
 
-    if not DATABASE.is_file():
-        raise FileNotFoundError(
-            "SQLite database not found. "
-            "Run seed_database.py first."
-        )
-
-    # Read-only mode protects existing economic data.
-    uri = DATABASE.resolve().as_uri() + "?mode=ro"
-
-    with sqlite3.connect(uri, uri=True) as conn:
-
-        conn.row_factory = sqlite3.Row
-
+    with connect_database() as conn:
         tables = {
             row["name"]
             for row in conn.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type='table'"
+                "SELECT tablename AS name FROM pg_catalog.pg_tables "
+                "WHERE schemaname = current_schema()"
             )
         }
 

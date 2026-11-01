@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 14
 # EXTERNAL SECTOR STREAMLIT DASHBOARD
@@ -10,7 +10,10 @@
 # ============================================================
 
 from pathlib import Path
-import sqlite3
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 
 import numpy as np
 import pandas as pd
@@ -19,7 +22,6 @@ import streamlit as st
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = ROOT / "database" / "economic_risk.db"
 
 NAVY = "#142B49"
 TEAL = "#0D9488"
@@ -33,13 +35,7 @@ CORAL = "#E26B69"
 
 def load_external_dashboard_data():
 
-    if not DB_PATH.is_file():
-        raise FileNotFoundError(
-            "economic_risk.db not found. "
-            "Run seed_database.py first."
-        )
-
-    with sqlite3.connect(DB_PATH) as connection:
+    with connect_database() as connection:
 
         df = pd.read_sql_query(
             """
@@ -278,7 +274,7 @@ def render_external_dashboard():
     except (
         FileNotFoundError,
         ValueError,
-        sqlite3.Error
+        psycopg.Error
     ) as error:
 
         st.error(

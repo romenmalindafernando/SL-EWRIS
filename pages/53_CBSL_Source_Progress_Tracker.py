@@ -53,7 +53,7 @@ st.caption(
 st.warning(
     "Research tracking only. Progress status does not "
     "constitute independent source verification. "
-    "The historical release ledger and SQLite database "
+    "The historical release ledger and PostgreSQL database "
     "are not modified."
 )
 

@@ -1,16 +1,18 @@
-﻿from pathlib import Path
-import sqlite3
 import sys
 
 import pandas as pd
 import streamlit as st
 
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from analysis.preliminary_risk_score import calculate_risk
 
-DB = ROOT / "database" / "economic_risk.db"
 HISTORY = (
     ROOT / "outputs/cbsl_preparation"
     / "combined_external_review_2014_2025.csv"
@@ -30,15 +32,11 @@ st.warning(
     "prediction model or crisis probability."
 )
 
-if not DB.exists():
-    st.error("SQLite database not found.")
-    st.stop()
-
-with sqlite3.connect(DB, timeout=15) as con:
+with connect_database() as con:
 
     tables = {
         r[0] for r in con.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
+            "SELECT tablename AS name FROM pg_catalog.pg_tables WHERE schemaname = current_schema()"
         )
     }
 
@@ -95,7 +93,7 @@ current = drafts.loc[
 ].iloc[0]
 
 st.caption(
-    "Selected record: Unverified user-entered SQLite draft."
+    "Selected record: Unverified user-entered PostgreSQL draft."
 )
 
 st.divider()

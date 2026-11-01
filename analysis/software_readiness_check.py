@@ -1,6 +1,9 @@
 ﻿from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import ast
-import sqlite3
+import psycopg
+from database import connect_database
 import subprocess
 import sys
 import re
@@ -84,33 +87,24 @@ check(
     f"/{len(required_pages)} present"
 )
 
-# 4. SQLite integrity (read only)
-db = ROOT / "database" / "economic_risk.db"
-
+# 4. PostgreSQL schema connectivity (read only)
 db_tables = []
 db_integrity = "Not checked"
 
-if db.is_file():
-    try:
-        with sqlite3.connect(
-            f"{db.resolve().as_uri()}?mode=ro",
-            uri=True
-        ) as con:
-            db_integrity = con.execute(
-                "PRAGMA quick_check"
-            ).fetchone()[0]
-
-            db_tables = [
-                row[0] for row in con.execute(
-                    "SELECT name FROM sqlite_master "
-                    "WHERE type='table'"
-                )
-            ]
-    except sqlite3.Error as exc:
-        db_integrity = str(exc)
+try:
+    with connect_database() as con:
+        db_integrity = "ok"
+        db_tables = [
+            row[0] for row in con.execute(
+                "SELECT tablename AS name FROM pg_catalog.pg_tables "
+                "WHERE schemaname = current_schema()"
+            )
+        ]
+except psycopg.Error as exc:
+    db_integrity = str(exc)
 
 check(
-    "SQLite Integrity",
+    "PostgreSQL Connectivity",
     db_integrity == "ok",
     f"Integrity: {db_integrity}"
 )
@@ -283,6 +277,6 @@ print("\n================================")
 print(f"CHECKS PASSED: {passed}/{total}")
 print("================================")
 print("Report saved:", destination)
-print("\nNo SQLite records modified.")
+print("\nNo PostgreSQL records modified.")
 print("No historical files modified.")
 print("No Git commits or pushes performed.")

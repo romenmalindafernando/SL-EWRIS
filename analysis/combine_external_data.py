@@ -156,7 +156,7 @@ def main():
 
     print("\nSaved:", DESTINATION)
     print("All observations remain Pending.")
-    print("SQLite database unchanged.")
+    print("PostgreSQL database unchanged.")
 
 if __name__ == "__main__":
     main()

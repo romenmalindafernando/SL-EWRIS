@@ -1,10 +1,12 @@
-
+﻿
 # ============================================================
 # SL-EWRIS
-# STEP 6 - IMPORT HISTORICAL DATA INTO SQLITE
+# STEP 6 - IMPORT HISTORICAL DATA INTO POSTGRESQL
 # ============================================================
 
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import date
 from math import isfinite
 
@@ -13,7 +15,6 @@ import pandas as pd
 from database import (
     COLUMN_TYPES,
     DATA_COLUMNS,
-    DATABASE_PATH,
     connect_database,
     create_tables,
     count_observations,
@@ -27,12 +28,7 @@ from database import (
 
 ROOT = Path(__file__).resolve().parent
 
-CSV_FILE = (
-    ROOT
-    / "outputs"
-    / "validation"
-    / "validated_historical_data.csv"
-)
+CSV_FILE = ROOT / "data" / "historical_data.csv"
 
 
 # ------------------------------------------------------------
@@ -42,7 +38,7 @@ CSV_FILE = (
 NUMERIC_COLUMNS = [
     name
     for name, data_type in COLUMN_TYPES.items()
-    if data_type == "REAL"
+    if data_type == "DOUBLE PRECISION"
 ]
 
 
@@ -55,9 +51,7 @@ def load_historical_data():
     if not CSV_FILE.is_file():
 
         raise FileNotFoundError(
-            "Validated historical CSV not found.\n"
-            "Run Step 5 first:\n"
-            "python analysis/validate_data.py"
+            f"Historical CSV not found: {CSV_FILE}"
         )
 
     df = pd.read_csv(
@@ -78,7 +72,7 @@ def load_historical_data():
 
     # Only import the known database columns.
     # The extra 'date' column produced in Step 5
-    # is not required in SQLite.
+    # is not required in PostgreSQL.
     df = df[DATA_COLUMNS].copy()
 
     if df["month"].isna().any():
@@ -141,7 +135,7 @@ def load_historical_data():
 
 
 # ------------------------------------------------------------
-# 4. Convert pandas missing values to SQLite NULL
+# 4. Convert pandas missing values to PostgreSQL NULL
 # ------------------------------------------------------------
 
 def prepare_records(df):
@@ -209,18 +203,14 @@ def import_historical_data():
             ON CONFLICT(month) DO NOTHING
         """
 
-        before = connection.total_changes
+        before = count_observations(connection)
 
         # Transaction: either the entire insertion succeeds
         # or no new historical rows are committed.
-        with connection:
+        connection.executemany(insert_sql, records)
+        connection.commit()
 
-            connection.executemany(
-                insert_sql,
-                records
-            )
-
-        inserted = connection.total_changes - before
+        inserted = count_observations(connection) - before
 
         skipped = len(records) - inserted
 

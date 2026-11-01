@@ -1,12 +1,14 @@
-﻿from pathlib import Path
-import sqlite3
+
 
 import pandas as pd
 import streamlit as st
 
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 ROOT = Path(__file__).resolve().parents[1]
-
-DB = ROOT / "database" / "economic_risk.db"
 
 HISTORY = (
     ROOT / "outputs/cbsl_preparation"
@@ -50,16 +52,13 @@ def read_csv(path):
 
 
 def read_database():
-    if not DB.exists():
-        return pd.DataFrame(), pd.DataFrame()
-
-    with sqlite3.connect(DB, timeout=15) as con:
+    with connect_database() as con:
 
         names = {
             row[0]
             for row in con.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type = 'table'"
+                "SELECT tablename AS name FROM pg_catalog.pg_tables "
+                "WHERE schemaname = current_schema()"
             )
         }
 
@@ -97,7 +96,7 @@ risk = read_csv(RISK)
 
 try:
     drafts, reviews = read_database()
-except sqlite3.Error as exc:
+except psycopg.Error as exc:
     st.error(f"Database error: {exc}")
     st.stop()
 

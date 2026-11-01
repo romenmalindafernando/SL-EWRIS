@@ -169,5 +169,5 @@ st.download_button(
 
 st.caption(
     "Read-only dashboard. No historical data, "
-    "publication records, or SQLite tables were modified."
+    "publication records, or PostgreSQL tables were modified."
 )

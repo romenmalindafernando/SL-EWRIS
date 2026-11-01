@@ -1,9 +1,11 @@
-﻿.venv/
+﻿# Python
+.venv/
 venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 
+# Secrets
 .env
 .env.*
 !.env.example
@@ -11,22 +13,29 @@ __pycache__/
 *.key
 .streamlit/secrets.toml
 
+# SQLite and backups
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
 *.sqlite
 *.sqlite3
+*.db.*.bak
 
+# Generated outputs and local datasets
 outputs/
+!outputs/
+!outputs/machine_learning/
+!outputs/machine_learning/model_summary.json
+!outputs/machine_learning/test_predictions.csv
+!outputs/machine_learning/test_scores.csv
 data/cbsl_downloads/
 data/historical_release_ledger.csv
 data/cbsl_external_monthly_2014_2025.csv
 data/*backup*
+data/historical_data.csv
 
+# Editor and OS files
 .vscode/
 .idea/
 Thumbs.db
-
-# SL-EWRIS release exclusions
-data/historical_data.csv

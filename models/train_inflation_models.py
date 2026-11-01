@@ -1,6 +1,6 @@
-"""SL-EWRIS Step 10: one-month-ahead headline inflation forecasting.
+﻿"""SL-EWRIS Step 10: one-month-ahead headline inflation forecasting.
 
-Inputs: database/economic_risk.db, table economic_monthly, field headline_yoy_pct.
+Inputs: Neon PostgreSQL table economic_monthly, field headline_yoy_pct.
 Outputs: outputs/machine_learning/*.csv and *.png.
 
 Methodology:
@@ -16,8 +16,11 @@ Methodology:
 
 from __future__ import annotations
 
-import sqlite3
 from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 
 import matplotlib
 matplotlib.use("Agg")
@@ -37,7 +40,6 @@ except ImportError:
     HAVE_XGBOOST = False
 
 ROOT = Path(__file__).resolve().parents[1]
-DATABASE = ROOT / "database" / "economic_risk.db"
 OUT = ROOT / "outputs" / "machine_learning"
 OUT.mkdir(parents=True, exist_ok=True)
 
@@ -50,9 +52,7 @@ FEATURES = ["lag_1", "lag_2", "lag_3", "lag_6", "lag_12", "mean_prev_3", "mean_p
 
 
 def load_data() -> pd.DataFrame:
-    if not DATABASE.exists():
-        raise FileNotFoundError(f"Database missing: {DATABASE}. Run seed_database.py first.")
-    with sqlite3.connect(DATABASE) as con:
+    with connect_database() as con:
         df = pd.read_sql_query(
             "SELECT month, headline_yoy_pct FROM economic_monthly ORDER BY month", con
         )

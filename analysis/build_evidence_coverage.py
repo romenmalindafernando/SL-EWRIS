@@ -316,5 +316,5 @@ if __name__ == "__main__":
     print("\nSaved:", MATRIX)
     print("Saved:", DETAIL)
     print("\nOriginal evidence records unchanged.")
-    print("SQLite database unchanged.")
+    print("PostgreSQL database unchanged.")
     print("No records automatically verified.")

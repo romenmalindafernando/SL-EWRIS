@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — SRI LANKA ECONOMIC RISK MONITORING SYSTEM
 #
@@ -13,7 +13,10 @@
 # ============================================================
 
 from pathlib import Path
-import sqlite3
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 
 import numpy as np
 import pandas as pd
@@ -26,7 +29,6 @@ import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1]
 
-DATABASE_FILE = ROOT / "database" / "economic_risk.db"
 
 OUTPUT_DIR = ROOT / "outputs" / "indicators"
 
@@ -50,13 +52,7 @@ CORAL = "#E26B69"
 
 def load_data():
 
-    if not DATABASE_FILE.is_file():
-        raise FileNotFoundError(
-            "Economic database not found. "
-            "Run seed_database.py first."
-        )
-
-    with sqlite3.connect(DATABASE_FILE) as connection:
+    with connect_database() as connection:
 
         df = pd.read_sql_query(
             """

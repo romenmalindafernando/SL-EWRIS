@@ -1,0 +1,27 @@
+{
+  "selected_model": "Naive Last Month",
+  "validation_period": "2024",
+  "evaluation_period": "2025",
+  "inflation_pressure": {
+    "status": "Lower Inflation Pressure",
+    "score": 0,
+    "maximum_score": 5,
+    "latest_inflation_pct": 2.1,
+    "momentum_pp": 0.2,
+    "note": "Heuristic inflation-pressure indicator. Not a calibrated crisis probability."
+  },
+  "next_month_forecast": {
+    "forecast_month": "2026-01",
+    "selected_model": "Naive Last Month",
+    "forecast_inflation_yoy_pct": 2.1,
+    "forecast_horizon": "One month ahead",
+    "warning": "Exploratory inflation forecast; not a financial-crisis prediction."
+  },
+  "limitations": [
+    "Historical research evaluation",
+    "No verified crisis prediction",
+    "Inflation pressure is rule-based",
+    "2025 has already been studied in the project",
+    "Published-data availability must be checked before a true real-time backtest"
+  ]
+}

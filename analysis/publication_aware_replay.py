@@ -242,7 +242,7 @@ def main():
     print("\nSaved:", REVIEW)
     print("Saved:", REPLAY)
     print("\nNo dates or observations were invented.")
-    print("SQLite database unchanged.")
+    print("PostgreSQL database unchanged.")
     print("This is availability checking, not crisis prediction.")
 
 
