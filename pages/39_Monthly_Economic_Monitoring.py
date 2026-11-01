@@ -24,7 +24,7 @@ st.caption("SL-EWRIS | Economic Data Entry and Screening")
 st.warning(
     "Research prototype: results are descriptive screening "
     "indicators, not validated financial-crisis predictions. "
-    "Entries are temporary and are not saved to SQLite."
+    "Entries are temporary and are not saved to PostgreSQL."
 )
 
 if "monitoring_entries" not in st.session_state:

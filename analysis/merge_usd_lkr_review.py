@@ -1,9 +1,9 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 23
 # MERGE EXTRACTED USD/LKR CANDIDATES INTO REVIEW WORKSHEET
 #
-# Does not overwrite original review or SQLite data.
+# Does not overwrite original review or PostgreSQL data.
 # Does not automatically mark observations Verified.
 # ============================================================
 
@@ -271,7 +271,7 @@ def main():
     )
 
     print("Original review file unchanged.")
-    print("SQLite database unchanged.")
+    print("PostgreSQL database unchanged.")
 
 
 if __name__ == "__main__":

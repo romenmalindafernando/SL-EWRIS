@@ -1,4 +1,4 @@
-"""SL-EWRIS Step 18: release-aware monthly monitoring simulation.
+﻿"""SL-EWRIS Step 18: release-aware monthly monitoring simulation.
 
 Run from project root:
     python analysis/monthly_point_in_time_simulation.py
@@ -10,13 +10,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import sqlite3
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 
 import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-DB = ROOT / "database" / "economic_risk.db"
 LEDGER = ROOT / "data" / "historical_release_ledger.csv"
 OUT = ROOT / "outputs" / "point_in_time_simulation"
 
@@ -32,9 +34,7 @@ SIGNALS = [
 
 
 def load_evidence():
-    if not DB.is_file():
-        raise FileNotFoundError(f"SQLite database missing: {DB}")
-    with sqlite3.connect(f"{DB.resolve().as_uri()}?mode=ro", uri=True) as conn:
+    with connect_database() as conn:
         months = {row[0] for row in conn.execute("SELECT month FROM economic_monthly")}
     if not LEDGER.exists():
         LEDGER.parent.mkdir(parents=True, exist_ok=True)

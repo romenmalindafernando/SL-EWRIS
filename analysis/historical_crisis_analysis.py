@@ -1,15 +1,18 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 16
 # HISTORICAL ECONOMIC STRESS ANALYSIS: 2020–2023
 #
-# Uses verified CBSL/DCS observations stored in SQLite.
+# Uses verified CBSL/DCS observations stored in PostgreSQL.
 # Retrospective descriptive analysis ONLY.
 # Not a validated financial-crisis prediction model.
 # ============================================================
 
 from pathlib import Path
-import sqlite3
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 
 import numpy as np
 import pandas as pd
@@ -17,7 +20,6 @@ import matplotlib.pyplot as plt
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DATABASE = ROOT / "database" / "economic_risk.db"
 OUTPUT = ROOT / "outputs" / "historical_crisis"
 
 OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -35,12 +37,7 @@ CORAL = "#E26B69"
 
 def load_data():
 
-    if not DATABASE.exists():
-        raise FileNotFoundError(
-            "Database not found. Run seed_database.py first."
-        )
-
-    with sqlite3.connect(DATABASE) as conn:
+    with connect_database() as conn:
 
         df = pd.read_sql_query(
             """

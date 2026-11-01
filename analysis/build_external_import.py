@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 21
 # BUILD VERIFIED CBSL EXTERNAL-SECTOR IMPORT FILE
@@ -9,7 +9,7 @@
 # Output:
 # outputs/cbsl_preparation/verified_external_import.csv
 #
-# Does not modify original source files or SQLite.
+# Does not modify original source files or PostgreSQL.
 # ============================================================
 
 from pathlib import Path
@@ -340,7 +340,7 @@ def main():
         )
 
     print(
-        "\nSQLite database unchanged. "
+        "\nPostgreSQL database unchanged. "
         "Run the importer's dry-run before applying."
     )
 

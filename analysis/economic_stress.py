@@ -1,16 +1,18 @@
-"""SL-EWRIS Step 11: transparent monthly economic-stress monitoring.
+﻿"""SL-EWRIS Step 11: transparent monthly economic-stress monitoring.
 
 Descriptive rules only; no trained crisis classifier or crisis probabilities.
 Run: python analysis/economic_stress.py
 """
 from pathlib import Path
-import sqlite3
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 import json
 import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-DB = ROOT / 'database' / 'economic_risk.db'
 OUT = ROOT / 'outputs' / 'economic_stress'
 OUT.mkdir(parents=True, exist_ok=True)
 
@@ -23,15 +25,13 @@ NUMERIC = [c for c in REQUIRED if c != 'month']
 
 
 def load_history():
-    if not DB.is_file():
-        raise FileNotFoundError(f'Database not found: {DB}. Run seed_database.py first.')
-    with sqlite3.connect(DB) as con:
+    with connect_database() as con:
         df = pd.read_sql_query('SELECT * FROM economic_monthly ORDER BY month', con)
     if df.empty:
         raise ValueError('economic_monthly has no rows.')
     missing = sorted(set(REQUIRED) - set(df.columns))
     if missing:
-        raise ValueError(f'Missing SQLite columns: {missing}')
+        raise ValueError(f'Missing PostgreSQL columns: {missing}')
     if df['month'].isna().any() or not df['month'].astype(str).str.fullmatch(r'\d{4}-(0[1-9]|1[0-2])').all():
         raise ValueError('Expected complete YYYY-MM dates.')
     df['date'] = pd.to_datetime(df['month'] + '-01', format='%Y-%m-%d')

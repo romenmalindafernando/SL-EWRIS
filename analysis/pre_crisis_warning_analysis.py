@@ -165,5 +165,5 @@ print(
 print("\n[PASS] Historical screening report generated.")
 print("CSV:", REPORT)
 print("Summary:", SUMMARY)
-print("SQLite database unchanged.")
+print("PostgreSQL database unchanged.")
 

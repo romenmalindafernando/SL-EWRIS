@@ -145,7 +145,7 @@ def main():
     print("\nSaved:", QUEUE)
     print("No publication dates or values invented.")
     print("Original evidence files unchanged.")
-    print("SQLite database unchanged.")
+    print("PostgreSQL database unchanged.")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-
+﻿
 from pathlib import Path
 import argparse
 import re
@@ -332,7 +332,7 @@ def extract():
     print("Observations:", len(result))
     print("Saved:", EXTRACTED)
     print("All values remain Pending verification.")
-    print("SQLite database unchanged.")
+    print("PostgreSQL database unchanged.")
 
 
 def main():

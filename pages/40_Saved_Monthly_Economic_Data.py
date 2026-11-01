@@ -1,12 +1,12 @@
-﻿from pathlib import Path
-from datetime import date
-import sqlite3
+﻿from datetime import date
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 
 import pandas as pd
 import streamlit as st
-
-ROOT = Path(__file__).resolve().parents[1]
-DB = ROOT / "database" / "economic_risk.db"
 
 st.set_page_config(
     page_title="SL-EWRIS | Saved Monthly Data",
@@ -14,7 +14,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("Monthly Economic Data — SQLite Storage")
+st.title("Monthly Economic Data — Neon PostgreSQL Storage")
 
 st.info(
     "This page stores draft monthly observations separately "
@@ -22,15 +22,9 @@ st.info(
     "not automatically verified or used for crisis predictions."
 )
 
-# Never silently create a replacement empty database.
-if not DB.is_file():
-    st.error(f"Existing database not found: {DB}")
-    st.stop()
-
 
 def connect():
-    con = sqlite3.connect(str(DB), timeout=15)
-    con.row_factory = sqlite3.Row
+    con = connect_database()
     return con
 
 
@@ -190,7 +184,7 @@ with st.form("sqlite_monthly_entry"):
     )
 
     submitted = st.form_submit_button(
-        "Save Monthly Draft to SQLite",
+        "Save Monthly Draft to PostgreSQL",
         type="primary"
     )
 
@@ -226,11 +220,11 @@ if submitted:
         try:
             save_draft(record)
             st.success(
-                f"{month} successfully saved to SQLite "
+                f"{month} successfully saved to PostgreSQL "
                 "as Unverified."
             )
 
-        except sqlite3.Error as exc:
+        except psycopg.Error as exc:
             st.error(f"Database error: {exc}")
 
 st.divider()
@@ -238,7 +232,7 @@ st.subheader("2. Saved Monthly Records")
 
 try:
     data = load_drafts()
-except sqlite3.Error as exc:
+except psycopg.Error as exc:
     st.error(f"Unable to read drafts: {exc}")
     st.stop()
 

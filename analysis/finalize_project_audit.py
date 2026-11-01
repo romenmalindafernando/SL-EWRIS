@@ -1,8 +1,11 @@
 ﻿from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import datetime
 from urllib.parse import urlparse
 import csv
-import sqlite3
+import psycopg
+from database import connect_database
 import py_compile
 import subprocess
 import sys
@@ -16,7 +19,6 @@ QUEUE = BASE / "cbsl_source_collection_queue_v1.csv"
 PROGRESS = BASE / "cbsl_source_collection_progress.csv"
 LEDGER = BASE / "historical_release_ledger_v1.csv"
 REGISTER = BASE / "publication_evidence_register_2020_2022.csv"
-DB = ROOT / "database" / "economic_risk.db"
 
 OUT.mkdir(parents=True, exist_ok=False)
 
@@ -165,21 +167,17 @@ write_csv(
     ready_records
 )
 
-# Inspect existing SQLite database without changing data.
+# Inspect existing PostgreSQL database without changing data.
 db_status = "Missing"
 draft_count = "Unknown"
 review_count = "Unknown"
 
-if DB.is_file():
-    try:
-        with sqlite3.connect(
-            f"{DB.resolve().as_uri()}?mode=ro",
-            uri=True
-        ) as con:
+try:
+    with connect_database() as con:
             tables = {
                 r[0] for r in con.execute(
-                    "SELECT name FROM sqlite_master "
-                    "WHERE type='table'"
+                    "SELECT tablename AS name FROM pg_catalog.pg_tables "
+                    "WHERE schemaname = current_schema()"
                 )
             }
 
@@ -197,8 +195,8 @@ if DB.is_file():
                     "FROM monthly_indicator_reviews"
                 ).fetchone()[0]
 
-    except sqlite3.Error as exc:
-        db_status = f"Read error: {exc}"
+except psycopg.Error as exc:
+    db_status = f"Read error: {exc}"
 
 # Compile project code without generating __pycache__.
 python_files = sorted(
@@ -255,7 +253,7 @@ Generated: {datetime.now().isoformat(timespec="seconds")}
 Python files inspected: {len(python_files)}
 Python syntax errors: {len(syntax_errors)}
 Preliminary risk-engine smoke tests: {test_result}
-Existing SQLite database: {db_status}
+Existing PostgreSQL database: {db_status}
 
 Saved monthly drafts: {draft_count}
 Manual review records: {review_count}
@@ -322,5 +320,5 @@ print("Source collection tasks:", len(queue))
 print("Audit packages complete:", len(ready_records))
 print("Historical ledger marked Verified:", ledger_verified)
 print("\nReports saved:", OUT)
-print("SQLite and original research files unchanged.")
+print("PostgreSQL and original research files unchanged.")
 print("No records automatically approved.")

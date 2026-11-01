@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 28.10
 # DETECT CHANGING CBSL RESERVES WORKSHEET LAYOUTS
@@ -9,7 +9,7 @@
 # READ-ONLY:
 # - Does not change the CBSL workbook
 # - Does not change existing mapping files
-# - Does not change the SQLite database
+# - Does not change the PostgreSQL database
 # - Does not automatically approve observations
 # ============================================================
 

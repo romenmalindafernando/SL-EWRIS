@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS - STEP 28.12
 # CORRECTED CBSL FOREIGN RESERVE MAPPING
@@ -12,7 +12,7 @@
 # Checks A5, A6, and F6 for each monthly worksheet.
 #
 # Creates a NEW proposed mapping.
-# Does not approve values or modify SQLite.
+# Does not approve values or modify PostgreSQL.
 # ============================================================
 
 from pathlib import Path
@@ -301,7 +301,7 @@ def main():
 
     print(
         "The source workbook, existing mapping "
-        "file and SQLite database are unchanged."
+        "file and PostgreSQL database are unchanged."
     )
 
 

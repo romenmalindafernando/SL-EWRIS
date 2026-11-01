@@ -328,7 +328,7 @@ if __name__ == "__main__":
         )
 
     print("\nSaved:", OUTPUT)
-    print("SQLite and evidence ledger unchanged.")
+    print("PostgreSQL and evidence ledger unchanged.")
     print(
         "Structural eligibility does not prove "
         "independent source verification."

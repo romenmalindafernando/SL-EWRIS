@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 28.14
 # CBSL MONTHLY OFFICIAL RESERVE ASSETS EXTRACTOR
@@ -19,7 +19,7 @@
 # Source values are USD millions.
 # Database candidates are USD billions.
 #
-# Original workbook and SQLite remain unchanged.
+# Original workbook and PostgreSQL remain unchanged.
 # No publication dates or approvals are invented.
 # ============================================================
 
@@ -528,7 +528,7 @@ def main():
         "and historical-publication verification."
     )
 
-    print("SQLite database unchanged.")
+    print("PostgreSQL database unchanged.")
 
 
 if __name__ == "__main__":

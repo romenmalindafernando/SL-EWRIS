@@ -1,230 +1,233 @@
+﻿"""Neon PostgreSQL access and idempotent schema migrations for SL-EWRIS."""
 
-# ============================================================
-# SL-EWRIS
-# STEP 6 - SQLITE ECONOMIC DATABASE
-# ============================================================
+from __future__ import annotations
 
-from pathlib import Path
-import sqlite3
+import os
+from typing import Any, Iterable
 
+import psycopg
 
-# ------------------------------------------------------------
-# 1. Database location
-# ------------------------------------------------------------
-
-BASE_DIR = Path(__file__).resolve().parent
-
-DATABASE_DIR = BASE_DIR / "database"
-
-DATABASE_DIR.mkdir(parents=True, exist_ok=True)
-
-DATABASE_PATH = DATABASE_DIR / "economic_risk.db"
-
-
-# ------------------------------------------------------------
-# 2. Historical economic dataset schema
-# ------------------------------------------------------------
-
-# These columns correspond to our existing historical_data.csv.
-# Each month is unique.
-#
-# The original and researcher-constructed price indices
-# are kept separately.
+DATABASE_URL_ENV = "DATABASE_URL"
 
 COLUMN_TYPES = {
     "month": "TEXT PRIMARY KEY NOT NULL",
     "publication_date": "TEXT",
-
-    "headline_yoy_pct": "REAL",
-    "food_yoy_pct": "REAL",
-    "nonfood_yoy_pct": "REAL",
-
-    "ccpi_linked_jan2019_100": "REAL",
-
-    "public_nominal_jan2019_100": "REAL",
-    "informal_nominal_jan2019_100": "REAL",
-
-    "public_real_ncpi_raw": "REAL",
-    "informal_real_ncpi_raw": "REAL",
-
-    "average_monthly_salary_lkr": "REAL",
-
-    "fx_reserves_usd_bn": "REAL",
-    "usd_lkr": "REAL",
-
+    "headline_yoy_pct": "DOUBLE PRECISION",
+    "food_yoy_pct": "DOUBLE PRECISION",
+    "nonfood_yoy_pct": "DOUBLE PRECISION",
+    "ccpi_linked_jan2019_100": "DOUBLE PRECISION",
+    "public_nominal_jan2019_100": "DOUBLE PRECISION",
+    "informal_nominal_jan2019_100": "DOUBLE PRECISION",
+    "public_real_ncpi_raw": "DOUBLE PRECISION",
+    "informal_real_ncpi_raw": "DOUBLE PRECISION",
+    "average_monthly_salary_lkr": "DOUBLE PRECISION",
+    "fx_reserves_usd_bn": "DOUBLE PRECISION",
+    "usd_lkr": "DOUBLE PRECISION",
     "source": "TEXT NOT NULL",
     "notes": "TEXT",
-
     "ccpi_published_base": "TEXT",
-
-    "ccpi_headline_original": "REAL",
-    "ccpi_food_original": "REAL",
-    "ccpi_nonfood_original": "REAL",
-
-    "public_nominal_original": "REAL",
-    "informal_nominal_original": "REAL",
-
+    "ccpi_headline_original": "DOUBLE PRECISION",
+    "ccpi_food_original": "DOUBLE PRECISION",
+    "ccpi_nonfood_original": "DOUBLE PRECISION",
+    "public_nominal_original": "DOUBLE PRECISION",
+    "informal_nominal_original": "DOUBLE PRECISION",
     "inflation_rate_source": "TEXT",
 }
+DATA_COLUMNS = list(COLUMN_TYPES)
 
 
-DATA_COLUMNS = list(COLUMN_TYPES.keys())
+class HybridRow(dict):
+    """A row supporting both existing ``row["column"]`` and ``row[0]`` calls."""
+
+    def __getitem__(self, key: Any) -> Any:
+        if isinstance(key, int):
+            return tuple(self.values())[key]
+        return super().__getitem__(key)
 
 
-# ------------------------------------------------------------
-# 3. Database connection
-# ------------------------------------------------------------
+def _row_factory(cursor: Any) -> Any:
+    def make_row(values: Iterable[Any]) -> HybridRow:
+        # Psycopg creates the row maker when the cursor is created. At that
+        # point description is None for every statement, including DDL.
+        columns = [column.name for column in cursor.description or ()]
+        return HybridRow(zip(columns, values))
 
-def connect_database():
-    """
-    Open a connection to our SQLite database.
-    """
+    return make_row
 
-    connection = sqlite3.connect(DATABASE_PATH)
 
-    connection.row_factory = sqlite3.Row
+class DatabaseConnection:
+    """Small psycopg wrapper retaining the project's existing execute API."""
 
-    connection.execute("PRAGMA foreign_keys = ON")
+    def __init__(self, connection: psycopg.Connection[Any]) -> None:
+        self._connection = connection
+        self._connection.row_factory = _row_factory
 
+    def _sql(self, statement: str) -> str:
+        return statement.replace("?", "%s")
+
+    def execute(self, statement: str, params: Any = None) -> Any:
+        return self._connection.execute(self._sql(statement), params)
+
+    def executemany(self, statement: str, params: Any) -> Any:
+        with self._connection.cursor() as cursor:
+            return cursor.executemany(self._sql(statement), params)
+
+    def cursor(self) -> Any:
+        return self._connection.cursor()
+
+    def commit(self) -> None:
+        self._connection.commit()
+
+    def rollback(self) -> None:
+        self._connection.rollback()
+
+    def close(self) -> None:
+        self._connection.close()
+
+    @property
+    def total_changes(self) -> int:
+        return 0
+
+    def __enter__(self) -> "DatabaseConnection":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        if exc_type is None:
+            self.commit()
+        else:
+            self.rollback()
+        self.close()
+
+
+def database_url() -> str:
+    value = os.getenv(DATABASE_URL_ENV)
+    if not value:
+        raise RuntimeError(
+            "DATABASE_URL is not set. Configure the Neon PostgreSQL connection "
+            "string in the environment; never commit it to source control."
+        )
+    return value
+
+
+def connect_database(initialize_schema: bool = True) -> DatabaseConnection:
+    connection = DatabaseConnection(
+        psycopg.connect(database_url(), connect_timeout=10)
+    )
+    if initialize_schema:
+        create_tables(connection)
     return connection
 
 
-# ------------------------------------------------------------
-# 4. Create the economic observations table
-# ------------------------------------------------------------
-
-def create_tables(connection):
-    """
-    Create the database table if it does not already exist.
-
-    Existing observations are not deleted.
-    """
-
+def create_tables(connection: DatabaseConnection) -> None:
+    """Apply additive schema migrations; never remove or replace user data."""
     column_definitions = ",\n".join(
-        f'"{name}" {data_type}'
-        for name, data_type in COLUMN_TYPES.items()
+        f'"{name}" {data_type}' for name, data_type in COLUMN_TYPES.items()
     )
-
-    sql = f"""
+    migrations = [
+        """
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER PRIMARY KEY,
+            applied_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        f"""
         CREATE TABLE IF NOT EXISTS economic_monthly (
             {column_definitions},
-
-            record_origin TEXT NOT NULL
-                DEFAULT 'historical_import',
-
-            created_at TEXT NOT NULL
-                DEFAULT CURRENT_TIMESTAMP,
-
-            updated_at TEXT NOT NULL
-                DEFAULT CURRENT_TIMESTAMP
+            record_origin TEXT NOT NULL DEFAULT 'historical_import',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
-    """
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS indicator_source_log (
+            id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            month TEXT NOT NULL REFERENCES economic_monthly(month),
+            indicator TEXT NOT NULL, old_value TEXT, new_value TEXT NOT NULL,
+            publication_date TEXT NOT NULL, source_name TEXT NOT NULL,
+            source_url TEXT, recorded_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS external_indicator_import_log (
+            id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            month TEXT NOT NULL, indicator TEXT NOT NULL, value DOUBLE PRECISION NOT NULL,
+            publication_date TEXT NOT NULL, source_url TEXT NOT NULL,
+            action TEXT NOT NULL, imported_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS monthly_economic_drafts (
+            month TEXT PRIMARY KEY, inflation_yoy_pct DOUBLE PRECISION,
+            nominal_wage_growth_yoy_pct DOUBLE PRECISION, usd_lkr DOUBLE PRECISION,
+            fx_reserves_usd_bn DOUBLE PRECISION, source_note TEXT NOT NULL DEFAULT '',
+            verification_status TEXT NOT NULL DEFAULT 'Unverified',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CHECK (length(month) = 7),
+            CHECK (inflation_yoy_pct IS NULL OR inflation_yoy_pct > -100),
+            CHECK (nominal_wage_growth_yoy_pct IS NULL OR nominal_wage_growth_yoy_pct > -100),
+            CHECK (usd_lkr IS NULL OR usd_lkr > 0),
+            CHECK (fx_reserves_usd_bn IS NULL OR fx_reserves_usd_bn > 0),
+            CHECK (verification_status = 'Unverified')
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS monthly_indicator_reviews (
+            month TEXT NOT NULL, indicator TEXT NOT NULL, reviewed_value DOUBLE PRECISION NOT NULL,
+            unit TEXT NOT NULL, publication_date TEXT NOT NULL, source_url TEXT NOT NULL,
+            review_status TEXT NOT NULL, review_note TEXT NOT NULL DEFAULT '',
+            reviewed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (month, indicator)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_source_log_month_indicator ON indicator_source_log(month, indicator)",
+    ]
+    for version, migration in enumerate(migrations, start=1):
+        connection.execute(migration)
+        connection.execute(
+            "INSERT INTO schema_migrations(version) VALUES (?) "
+            "ON CONFLICT(version) DO NOTHING",
+            (version,),
+        )
 
-    connection.execute(sql)
+
+def count_observations(connection: DatabaseConnection) -> int:
+    return int(connection.execute("SELECT COUNT(*) FROM economic_monthly").fetchone()[0])
 
 
-# ------------------------------------------------------------
-# 5. Count monthly observations
-# ------------------------------------------------------------
-
-def count_observations(connection):
-
-    result = connection.execute(
-        "SELECT COUNT(*) FROM economic_monthly"
-    ).fetchone()
-
-    return result[0]
-
-
-# ------------------------------------------------------------
-# 6. Retrieve the historical date range
-# ------------------------------------------------------------
-
-def get_date_range(connection):
-
+def get_date_range(connection: DatabaseConnection) -> Any:
     return connection.execute(
-        """
-        SELECT
-            MIN(month) AS first_month,
-            MAX(month) AS last_month
-        FROM economic_monthly
-        """
+        "SELECT MIN(month) AS first_month, MAX(month) AS last_month FROM economic_monthly"
     ).fetchone()
 
 
-# ------------------------------------------------------------
-# 7. Retrieve monthly economic observations
-# ------------------------------------------------------------
-
-def get_monthly_data(connection, start=None, end=None):
-    """
-    Retrieve stored observations in chronological order.
-
-    start and end use YYYY-MM format.
-
-    NULL values remain NULL.
-    """
-
+def get_monthly_data(connection: DatabaseConnection, start: str | None = None,
+                     end: str | None = None) -> list[dict[str, Any]]:
     query = "SELECT * FROM economic_monthly WHERE 1 = 1"
-
-    parameters = []
-
+    parameters: list[str] = []
     if start is not None:
         query += " AND month >= ?"
         parameters.append(start)
-
     if end is not None:
         query += " AND month <= ?"
         parameters.append(end)
-
-    query += " ORDER BY month"
-
-    rows = connection.execute(
-        query,
-        parameters
-    ).fetchall()
-
+    rows = connection.execute(query + " ORDER BY month", parameters).fetchall()
     return [dict(row) for row in rows]
 
 
-# ------------------------------------------------------------
-# 8. Database information
-# ------------------------------------------------------------
-
-def show_database_info(connection):
-
-    total = count_observations(connection)
-
+def show_database_info(connection: DatabaseConnection) -> None:
     date_range = get_date_range(connection)
-
     print("\n" + "=" * 60)
-    print("SL-EWRIS - SQLITE DATABASE")
+    print("SL-EWRIS - NEON POSTGRESQL DATABASE")
     print("=" * 60)
-
-    print(f"Database: {DATABASE_PATH}")
-
-    print(f"Total observations: {total}")
-
+    print("Database: Neon PostgreSQL (DATABASE_URL)")
+    print(f"Total observations: {count_observations(connection)}")
     print(f"First month: {date_range['first_month']}")
-
     print(f"Last month: {date_range['last_month']}")
-
     print("=" * 60)
 
-
-# ------------------------------------------------------------
-# 9. Allow independent testing
-# ------------------------------------------------------------
 
 if __name__ == "__main__":
-
-    connection = connect_database()
-
-    try:
+    with connect_database() as connection:
         create_tables(connection)
-        connection.commit()
-
-        show_database_info(connection)
-
-    finally:
-        connection.close()
+        print("Schema migrations applied.")

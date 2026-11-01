@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS - STEP 22 (REVISED FOR YOUR ACTUAL FILES)
 #
@@ -14,7 +14,7 @@
 #
 # SAFE:
 # - Does not modify original Excel files.
-# - Does not modify the SQLite database.
+# - Does not modify the PostgreSQL database.
 # - Does not invent publication dates.
 # - Does not auto-approve extracted observations.
 # ============================================================
@@ -607,7 +607,7 @@ def main():
         "\nAll extracted values are Pending "
         "source verification."
     )
-    print("SQLite database unchanged.")
+    print("PostgreSQL database unchanged.")
 
 
 if __name__ == "__main__":

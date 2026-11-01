@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 19
 # INSPECT OFFICIAL CBSL DOWNLOADED DATASETS
@@ -9,7 +9,7 @@
 #
 # This program is READ-ONLY.
 # It will NOT edit your original CBSL files,
-# historical data, or SQLite database.
+# historical data, or PostgreSQL database.
 # ============================================================
 
 from pathlib import Path
@@ -306,7 +306,7 @@ def main():
 
     print(
         "No economic figures were imported "
-        "into SQLite."
+        "into PostgreSQL."
     )
 
 

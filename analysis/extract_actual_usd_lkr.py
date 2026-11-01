@@ -1,4 +1,4 @@
-
+﻿
 # ============================================================
 # SL-EWRIS — STEP 22
 # EXTRACT CBSL MONTHLY USD/LKR EXCHANGE RATES
@@ -15,7 +15,7 @@
 #
 # IMPORTANT:
 # - Original Excel workbook is never modified.
-# - SQLite database is never modified.
+# - PostgreSQL database is never modified.
 # - Historical publication dates are NOT invented.
 # - All extracted data remain pending verification.
 # ============================================================
@@ -279,7 +279,7 @@ def main():
         "source URL must still be documented."
     )
 
-    print("SQLite database unchanged.")
+    print("PostgreSQL database unchanged.")
 
 
 if __name__ == "__main__":

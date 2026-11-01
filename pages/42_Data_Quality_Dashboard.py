@@ -1,12 +1,12 @@
-﻿from pathlib import Path
-import sqlite3
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import psycopg
+from database import connect_database
 import math
 
 import pandas as pd
 import streamlit as st
-
-ROOT = Path(__file__).resolve().parents[1]
-DB = ROOT / "database" / "economic_risk.db"
 
 st.set_page_config(
     page_title="SL-EWRIS | Data Quality",
@@ -30,20 +30,16 @@ INDICATORS = {
     "fx_reserves_usd_bn": "Foreign Reserves"
 }
 
-if not DB.is_file():
-    st.error("Existing economic_risk.db database is missing.")
-    st.stop()
-
 
 def load_data():
 
-    with sqlite3.connect(DB, timeout=15) as con:
+    with connect_database() as con:
 
         tables = {
             row[0]
             for row in con.execute(
-                "SELECT name FROM sqlite_master "
-                "WHERE type='table'"
+                "SELECT tablename AS name FROM pg_catalog.pg_tables "
+                "WHERE schemaname = current_schema()"
             )
         }
 
@@ -73,7 +69,7 @@ def load_data():
 
 try:
     drafts, reviews = load_data()
-except (sqlite3.Error, KeyError) as exc:
+except (psycopg.Error, KeyError) as exc:
     st.error(f"Unable to load database records: {exc}")
     st.stop()
 
@@ -331,6 +327,6 @@ st.download_button(
 )
 
 st.caption(
-    "Read-only dashboard. No SQLite records are "
+    "Read-only dashboard. No PostgreSQL records are "
     "modified, deleted or automatically approved."
 )
